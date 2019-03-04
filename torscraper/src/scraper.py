@@ -6,6 +6,8 @@ from termcolor import colored
 from pathlib import Path
 import os
 import errno
+import random
+import time
 
 
 class Scraper:
@@ -15,9 +17,11 @@ class Scraper:
     # TODO: add headers (e.g. firefox browser header)
     # TODO: encoding and decoding?
 
-    def __init__(self, tor_password, max_n_uses=5, socks_port=9050, control_port=9051, cache_root='/cache/'):
+    def __init__(self, tor_password, max_n_uses=5, minimum_wait_time=5, random_wait_time=5, socks_port=9050, control_port=9051, cache_root='/cache/'):
         self.tor_password = tor_password
         self.max_n_uses = max_n_uses
+        self.minimum_wait_time = minimum_wait_time
+        self.random_wait_time = random_wait_time
         self.socks_port = socks_port
         self.control_port = control_port
         self.cache_root = Path(cache_root) / 'scraped_pages'
@@ -74,6 +78,7 @@ class Scraper:
             self._print_fetch_related_stuff("\tPage fetched from cache")
         except FileNotFoundError:
             self._print_fetch_related_stuff("\tPage not found in cache")
+
             # -- if used too many times, refresh ip -- #
             if self.n_uses >= self.max_n_uses:
                 self._print_ip_related_stuff("\t\tMax uses reached on current IP: {}".format(self.current_ip))
@@ -81,6 +86,9 @@ class Scraper:
                 self._refresh_ip()
 
             # -- get the page -- #
+            wait_time = self.minimum_wait_time + random.random() * self.random_wait_time
+            self._print_fetch_related_stuff("\tSleeping for {:.2f}s to avoid getting blacklisted".format(wait_time))
+            time.sleep(wait_time)
             self._print_fetch_related_stuff("\tFetching page from internet...")
             result = self.tor_session.get(url, **kwargs).text
             self._update_ip_dict(n_uses=1)
