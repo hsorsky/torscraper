@@ -8,6 +8,8 @@ from termcolor import colored
 class Scraper:
 
     # TODO: add logging
+    # TODO: add page caching
+    # TODO: add headers (e.g. firefox browser header)
 
     def __init__(self, tor_password, max_n_uses=5, socks_port=9050, control_port=9051):
         self.tor_password = tor_password
