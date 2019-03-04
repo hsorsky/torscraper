@@ -50,7 +50,7 @@ class Scraper:
             controller.authenticate(password=self.tor_password)
             controller.signal(Signal.NEWNYM)
         self._update_current_ip()
-        self._print_ip_related_stuff("New Tor connection processed with IP: {}".format(self.current_ip))
+        self._print_ip_related_stuff("\t\t\tNew Tor connection processed with IP: {}".format(self.current_ip))
 
     def _update_ip_dict(self, n_uses):
         self.ips_used[self.current_ip] += n_uses
