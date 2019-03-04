@@ -2,6 +2,7 @@ from stem import Signal
 from stem.control import Controller
 import requests
 import re
+from termcolor import colored
 
 
 class Scraper:
@@ -35,7 +36,7 @@ class Scraper:
             controller.authenticate(password=self.tor_password)
             controller.signal(Signal.NEWNYM)
         self._update_current_ip()
-        print("New Tor connection processed with IP: {}".format(self.current_ip))
+        self._print_ip_related_stuff("New Tor connection processed with IP: {}".format(self.current_ip))
 
     def _update_ip_dict(self, n_uses):
         self.ips_used[self.current_ip] += n_uses
@@ -52,12 +53,26 @@ class Scraper:
     def get(self, url, **kwargs):
         # -- if used too many times, refresh ip -- #
         if self.n_uses >= self.max_n_uses:
-            print("Max uses reached on current IP: {}".format(self.current_ip))
-            print("Signalling for new IP...")
+            self._print_ip_related_stuff("Max uses reached on current IP: {}".format(self.current_ip))
+            self._print_ip_related_stuff("\tSignalling for new IP...")
             self._refresh_ip()
 
         # -- get the page -- #
-        print("Fetching {}".format(url))
+        self._print_fetch_related_stuff("Fetching {}".format(url))
         result = self.tor_session.get(url, **kwargs)
         self._update_ip_dict(n_uses=1)
         return result
+
+    @staticmethod
+    def _print_ip_related_stuff(string):
+        print(colored(string, 'blue'))
+
+    @staticmethod
+    def _print_fetch_related_stuff(string):
+        print(colored(string, 'green'))
+
+
+if __name__ == '__main__':
+    scraper = Scraper(tor_password='torpassword')
+    for i in range(10):
+        scraper.get('http://www.google.com')
