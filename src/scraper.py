@@ -52,9 +52,12 @@ class Scraper:
     def get(self, url, **kwargs):
         # -- if used too many times, refresh ip -- #
         if self.n_uses >= self.max_n_uses:
+            print("Max uses reached on current IP: {}".format(self.current_ip))
+            print("Signalling for new IP...")
             self._refresh_ip()
 
         # -- get the page -- #
+        print("Fetching {}".format(url))
         result = self.tor_session.get(url, **kwargs)
         self._update_ip_dict(n_uses=1)
         return result
