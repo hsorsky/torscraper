@@ -10,6 +10,10 @@ import random
 import time
 
 
+class IgnoreCacheError(Exception):
+    pass
+
+
 class Scraper:
 
     # TODO: add logging
@@ -17,7 +21,8 @@ class Scraper:
     # TODO: add headers (e.g. firefox browser header)
     # TODO: encoding and decoding?
 
-    def __init__(self, tor_password, max_n_uses=5, minimum_wait_time=5, random_wait_time=5, socks_port=9050, control_port=9051, cache_root='/cache/'):
+    def __init__(self, tor_password, max_n_uses=5, minimum_wait_time=5, random_wait_time=5,
+                 socks_port=9050, control_port=9051, cache_root='/cache/', ignore_cache=False):
         self.tor_password = tor_password
         self.max_n_uses = max_n_uses
         self.minimum_wait_time = minimum_wait_time
@@ -26,6 +31,7 @@ class Scraper:
         self.control_port = control_port
         self.cache_root = Path(cache_root) / 'scraped_pages'
         self._make_cache_root()
+        self.ignore_cache = ignore_cache
         self.tor_session = self._get_tor_session()
         self.ips_used = {}
         self._update_current_ip()
@@ -72,11 +78,14 @@ class Scraper:
         file_version_of_url = url.replace('/', '_')
         self._print_fetch_related_stuff("Page: {}".format(url))
         try:
+            if self.ignore_cache:
+                self._print_fetch_related_stuff("\tIgnoring cache")
+                raise IgnoreCacheError
             # get page from cache
             self._print_fetch_related_stuff("\tChecking cache for page")
             result = self._retrieve_from_cache(file_version_of_url)
             self._print_fetch_related_stuff("\tPage fetched from cache")
-        except FileNotFoundError:
+        except FileNotFoundError or IgnoreCacheError:
             self._print_fetch_related_stuff("\tPage not found in cache")
 
             # -- if used too many times, refresh ip -- #
@@ -115,7 +124,6 @@ class Scraper:
         with open(self.cache_root / url, 'r') as f:
             text = f.read()
         return text
-
 
 # if __name__ == '__main__':
 #     scraper = Scraper(tor_password='torpassword', cache_root='/Users/hsorsky/dev/torscraper/cache/')
