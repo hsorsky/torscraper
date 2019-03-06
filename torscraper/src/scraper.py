@@ -18,12 +18,12 @@ class Scraper:
 
     # TODO: add logging
     # TODO: add page caching
-    # TODO: add headers (e.g. firefox browser header)
     # TODO: encoding and decoding?
 
-    def __init__(self, tor_password, max_n_uses=5, minimum_wait_time=5, random_wait_time=5,
+    def __init__(self, tor_password, headers=None, max_n_uses=5, minimum_wait_time=5, random_wait_time=5,
                  socks_port=9050, control_port=9051, cache_root='/cache/', ignore_cache=False):
         self.tor_password = tor_password
+        self.headers = headers
         self.max_n_uses = max_n_uses
         self.minimum_wait_time = minimum_wait_time
         self.random_wait_time = random_wait_time
@@ -49,6 +49,7 @@ class Scraper:
             'http':  'socks5://127.0.0.1:{}'.format(self.socks_port),
             'https': 'socks5://127.0.0.1:{}'.format(self.socks_port),
         }
+        session.headers = self.headers
         return session
 
     def _update_current_ip(self):
