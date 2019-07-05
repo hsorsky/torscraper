@@ -6,6 +6,7 @@ import requests
 from stem import Signal
 from stem.control import Controller
 from termcolor import colored
+from toripchanger import TorIpChanger
 
 
 class Session(requests.Session):
@@ -25,15 +26,17 @@ class Session(requests.Session):
 		self.control_port = control_port
 		self.ips_used = {}
 		self._update_current_ip()
+		self.tor_ip_changer = TorIpChanger(tor_password=self.tor_password, tor_port=control_port, local_http_proxy=f"127.0.0.1:{socks_port}")
 
 	def _update_current_ip(self):
 		self.current_ip = re.search(r"[0-9.]*", self.get('https://icanhazip.com/').text)[0]
 		self.ips_used[self.current_ip] = 0
 
 	def _refresh_ip(self):
-		with Controller.from_port(port=self.control_port) as controller:
-			controller.authenticate(password=self.tor_password)
-			controller.signal(Signal.NEWNYM)
+		# with Controller.from_port(port=self.control_port) as controller:
+		# 	controller.authenticate(password=self.tor_password)
+		# 	controller.signal(Signal.NEWNYM)
+		self.tor_ip_changer.get_new_ip()
 		self._update_current_ip()
 		self._print_ip_related_stuff("\t\t\tNew Tor connection processed with IP: {}".format(self.current_ip))
 
