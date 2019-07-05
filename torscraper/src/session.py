@@ -15,8 +15,8 @@ class Session(requests.Session):
 		super().__init__()
 		self.headers = headers
 		self.proxies = {
-			'http': f'socks5://127.0.0.1:{socks_port}',
-			'https': f'socks5://127.0.0.1:{socks_port}',
+			'http': f'socks5://127.0.0.1:{8118}',
+			'https': f'socks5://127.0.0.1:{8118}',
 		}
 		self.tor_password = tor_password
 		self.max_n_uses = max_n_uses
@@ -33,10 +33,10 @@ class Session(requests.Session):
 		self.ips_used[self.current_ip] = 0
 
 	def _refresh_ip(self):
-		# with Controller.from_port(port=self.control_port) as controller:
-		# 	controller.authenticate(password=self.tor_password)
-		# 	controller.signal(Signal.NEWNYM)
-		self.tor_ip_changer.get_new_ip()
+		with Controller.from_port(port=self.control_port) as controller:
+			controller.authenticate(password=self.tor_password)
+			controller.signal(Signal.NEWNYM)
+		# self.tor_ip_changer.get_new_ip()
 		self._update_current_ip()
 		self._print_ip_related_stuff("\t\t\tNew Tor connection processed with IP: {}".format(self.current_ip))
 
