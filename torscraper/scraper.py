@@ -2,6 +2,7 @@ import logging
 import random
 import re
 import time
+import warnings
 
 import requests
 from stem import Signal
@@ -11,6 +12,7 @@ from termcolor import colored
 from torscraper import PickleCacher
 from torscraper.caching.base_cacher import BaseCacher
 from torscraper.logger import set_formatter
+from torscraper.user_agents import USER_AGENTS
 
 set_formatter()
 LOGGER = logging.getLogger(__name__)
@@ -48,9 +50,9 @@ class Scraper:
         self._update_current_ip()
 
     def _validate_inputs(self):
-        # TODO (hsorsky): do something to check if tor_password is none
-        # TODO (hsorsky): do something to check if cacher is none (doesnt matter if ignore cache)
-        pass
+        if self.tor_password is None:
+            warnings.warn("tor_password is None - setting to empty string")
+            self.tor_password = ""
 
     def _get_tor_session(self):
         session = requests.session()
@@ -75,10 +77,10 @@ class Scraper:
             controller.authenticate(password=self.tor_password)
             controller.signal(Signal.NEWNYM)
         self._update_current_ip()
-        LOGGER.info(
-            self._format_ip_related_stuff(
-                f"\t\t\tNew Tor connection processed with IP: {self.current_ip}"
-            )
+        if self.randomize_headers:
+            self.tor_session.headers = random.choice(USER_AGENTS)
+        self._log_ip_related(
+            f"\t\t\tNew Tor connection processed with IP: {self.current_ip}"
         )
 
     def _update_ip_dict(self, n_uses):
@@ -99,68 +101,56 @@ class Scraper:
 
     def scrape(self, url, **kwargs):
         file_name = self.get_file_name(url)
-        LOGGER.info(self._format_fetch_related_stuff(f"Page: {url}"))
+        self._log_fetch_related(f"Page: {url}")
         if self.ignore_cache:
-            LOGGER.info(self._format_fetch_related_stuff(f"\tIgnoring cache"))
+            self._log_fetch_related(f"\tIgnoring cache")
         else:
-            LOGGER.info(self._format_fetch_related_stuff("\tChecking cache for page"))
+            self._log_fetch_related("\tChecking cache for page")
             exists_in_cache = self.cacher.check_response_exists(file_name)
             if exists_in_cache:
-                LOGGER.info(
-                    self._format_fetch_related_stuff(
-                        "\tPage found in cache - skipping."
-                    )
-                )
+                self._log_fetch_related("\tPage found in cache - skipping.")
             else:
                 response = self._get_page_from_internet(url, **kwargs)
-                success = response.status_code // 100 == 2  # i.e. check its a 200 code - this means success
+
+                # check its a 200 code - this means success
+                success = response.status_code // 100 == 2
                 if success:
                     self.cacher.cache_response(response, file_name)
                 else:
-                    LOGGER.info(
-                        self._format_fetch_related_stuff(
-                            f"\tBad response status code {response.status_code}. Not caching."
-                        )
+                    self._log_fetch_related(
+                        f"\tBad response status code {response.status_code}. Not caching."
                     )
 
     def _get_page_from_internet(self, url, **kwargs):
-        LOGGER.info(
-            self._format_fetch_related_stuff(
-                "\tPage not found in cache - fetching from internet"
-            )
-        )
+        self._log_fetch_related("\tPage not found in cache - fetching from internet")
 
         # if used the ip too many times, refresh
         if self.n_uses >= self.max_n_uses:
-            LOGGER.info(
-                self._format_ip_related_stuff(
-                    f"\t\tMax uses reached on current IP: {self.current_ip}\n"
-                    f"\t\t\tSignalling for new IP..."
-                )
+            self._log_ip_related(
+                f"\t\tMax uses reached on current IP: {self.current_ip}\n"
+                f"\t\t\tSignalling for new IP..."
             )
             self._refresh_ip()
 
         # get the page
         wait_time = self.minimum_wait_time + random.random() * self.random_wait_time
-        LOGGER.info(
-            self._format_fetch_related_stuff(
-                f"\t\tSleeping for {wait_time:.2f}s to avoid getting blacklisted"
-            )
+
+        self._log_fetch_related(
+            f"\t\tSleeping for {wait_time:.2f}s to avoid getting blacklisted"
         )
+
         time.sleep(wait_time)
-        LOGGER.info(
-            self._format_fetch_related_stuff("\t\tFetching page from internet...")
-        )
+        self._log_fetch_related("\t\tFetching page from internet...")
         response = self.tor_session.get(url, **kwargs)
         self._update_ip_dict(n_uses=1)
-        LOGGER.info(self._format_fetch_related_stuff("\t\tPage fetched from internet"))
+        self._log_fetch_related("\t\tPage fetched from internet")
 
         return response
 
     @staticmethod
-    def _format_ip_related_stuff(string):
-        return colored(string, "blue")
+    def _log_ip_related(string):
+        LOGGER.info(colored(string, "blue"))
 
     @staticmethod
-    def _format_fetch_related_stuff(string):
-        return colored(string, "green")
+    def _log_fetch_related(string):
+        LOGGER.info(colored(string, "green"))
