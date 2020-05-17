@@ -5,6 +5,8 @@ import time
 import warnings
 
 import requests
+from requests import Response
+from requests import Session
 from stem import Signal
 from stem.control import Controller
 from termcolor import colored
@@ -51,11 +53,16 @@ class Scraper:
         self.bad_response_urls = set()
 
     def _validate_inputs(self):
+        """ Validate the inputs.
+        """
         if self.tor_password is None:
             warnings.warn("tor_password is None - setting to empty string")
             self.tor_password = ""
 
-    def _get_tor_session(self):
+    def _get_tor_session(self) -> Session:
+        """Get a new TOR session.
+        :return: New session with appropriate headers.
+        """
         session = requests.session()
         session.proxies = {
             "http": f"socks5://127.0.0.1:{self.socks_port}",
@@ -65,15 +72,23 @@ class Scraper:
         return session
 
     def _update_current_ip(self):
+        """Update our current IP address and the counter for how many times each IP has been used.
+        """
         self.current_ip = self._get_current_ip()
         self.ips_used[self.current_ip] = 0
 
-    def _get_current_ip(self):
+    def _get_current_ip(self) -> str:
+        """Get the current IP address
+
+        :return: Current IP address
+        """
         return re.search(
             "[0-9.]*", self.tor_session.get("https://icanhazip.com/").text
         )[0]
 
     def _refresh_ip(self):
+        """Signal to TOR to get a new IP address. If we are randomizing headers, also get a new user-agent header.
+        """
         with Controller.from_port(port=self.control_port) as controller:
             controller.authenticate(password=self.tor_password)
             controller.signal(Signal.NEWNYM)
@@ -84,11 +99,18 @@ class Scraper:
             f"\t\t\tNew Tor connection processed with IP: {self.current_ip}"
         )
 
-    def _update_ip_dict(self, n_uses):
+    def _update_ip_dict(self, n_uses: int):
+        """Add to the tracker of the number of times we have used an IP address.
+
+        :param n_uses: Number of times used.
+        """
         self.ips_used[self.current_ip] += n_uses
 
     @property
     def n_uses(self):
+        """
+        :return: The number of times the current IP address has been used.
+        """
         try:
             n_uses = self.ips_used[self.current_ip]
         except KeyError:
@@ -97,10 +119,20 @@ class Scraper:
         return n_uses
 
     @staticmethod
-    def get_file_name(url):
+    def get_file_name(url: str) -> str:
+        """Get the equivalent file name of a URL
+
+        :param url: URL to get the file name of.
+        :return: File name of given URL
+        """
         return url.replace("/", "__")
 
-    def scrape(self, url, **kwargs):
+    def scrape(self, url: str, **kwargs):
+        """# TODO (hsorsky):
+
+        :param url: URL to cache.
+        :param kwargs: kwargs
+        """
         try:
             file_name = self.get_file_name(url)
             self._log_fetch_related(f"Page: {url}")
@@ -127,7 +159,12 @@ class Scraper:
             print(f"\n{self.bad_response_urls}\n")
             raise
 
-    def _get_page_from_internet(self, url, **kwargs):
+    def _get_page_from_internet(self, url, **kwargs) -> Response:
+        """Fetch the page from the internet, waiting an appropriate amount of time and rotating IP if necessary.
+
+        :param url: URL of the page to get.
+        :return: Page response.
+        """
         self._log_fetch_related("\tPage not found in cache - fetching from internet")
 
         # if used the ip too many times, refresh
@@ -155,8 +192,16 @@ class Scraper:
 
     @staticmethod
     def _log_ip_related(string):
+        """Log info related to IP addresses.
+
+        :param string: string to pass to the logger
+        """
         LOGGER.info(colored(string, "blue"))
 
     @staticmethod
     def _log_fetch_related(string):
+        """Log info related to fetching pages.
+
+        :param string: string to pass to the logger
+        """
         LOGGER.info(colored(string, "green"))
