@@ -48,6 +48,7 @@ class Scraper:
         self.tor_session = self._get_tor_session()
         self.ips_used = {}
         self._update_current_ip()
+        self.bad_response_urls = set()
 
     def _validate_inputs(self):
         if self.tor_password is None:
@@ -100,26 +101,31 @@ class Scraper:
         return url.replace("/", "__")
 
     def scrape(self, url, **kwargs):
-        file_name = self.get_file_name(url)
-        self._log_fetch_related(f"Page: {url}")
-        if self.ignore_cache:
-            self._log_fetch_related(f"\tIgnoring cache")
-        else:
-            self._log_fetch_related("\tChecking cache for page")
-            exists_in_cache = self.cacher.check_response_exists(file_name)
-            if exists_in_cache:
-                self._log_fetch_related("\tPage found in cache - skipping.")
+        try:
+            file_name = self.get_file_name(url)
+            self._log_fetch_related(f"Page: {url}")
+            if self.ignore_cache:
+                self._log_fetch_related(f"\tIgnoring cache")
             else:
-                response = self._get_page_from_internet(url, **kwargs)
-
-                # check its a 200 code - this means success
-                success = response.status_code // 100 == 2
-                if success:
-                    self.cacher.cache_response(response, file_name)
+                self._log_fetch_related("\tChecking cache for page")
+                exists_in_cache = self.cacher.check_response_exists(file_name)
+                if exists_in_cache:
+                    self._log_fetch_related("\tPage found in cache - skipping.")
                 else:
-                    self._log_fetch_related(
-                        f"\tBad response status code {response.status_code}. Not caching."
-                    )
+                    response = self._get_page_from_internet(url, **kwargs)
+
+                    # check its a 200 code - this means success
+                    success = response.status_code // 100 == 2
+                    if success:
+                        self.cacher.cache_response(response, file_name)
+                    else:
+                        self._log_fetch_related(
+                            f"\tBad response status code {response.status_code}. Not caching."
+                        )
+                        self.bad_response_urls.add(url)
+        except:
+            print(f"\n{self.bad_response_urls}\n")
+            raise
 
     def _get_page_from_internet(self, url, **kwargs):
         self._log_fetch_related("\tPage not found in cache - fetching from internet")
