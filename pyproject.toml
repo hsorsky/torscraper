@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "torscraper"
+version = "0.1.0"
+description = ""
+authors = ["Henry Sorsky"]
+
+[tool.poetry.dependencies]
+python = "^3.6"
+PySocks = "1.6.8"
+requests = "2.21.0"
+stem = "1.7.1"
+termcolor = "1.1.0"
+toripchanger = "^1.1.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^3.4"
+black = "^19.10b0"
+isort = "^4.3.21"

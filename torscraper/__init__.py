@@ -1,2 +1,2 @@
-from .src.scraper import *
-from .src.session import *
+from torscraper.caching import *
+from torscraper.scraper import *
