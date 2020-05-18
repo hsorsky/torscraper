@@ -21,10 +21,44 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Scraper:
+    """Scraper class used to cache pages from the internet. Checks local cache for existence of page already. If page
+    does not exist in local cache, fetches from internet using TOR and caches. Intended usage:
+
+    >>> list_of_urls = [...]
+    >>> scraper = Scraper()
+    >>> for url in list_of_urls:
+    >>>     scraper.scrape(url)
+
+    By default, ``Scraper`` caches the response from the page by saving it to a pickle under ``~/torscraper-cache/``.
+    If a bad response is received, the page will not be cached. For other functionality, one can subclass
+    ``BaseCacher``, implementing ``setup_cache``, ``check_response_exists``, ``cache_response`` and
+    ``get_response_from_cache``. For example, you may wish to cache responses to a DB so could create a
+    ``DatabaseCacher`` class. Alternatively, you may just cache results in pickles, as default, and import them to DB
+    afterwards.
+
+    :param headers: Defaults to ``None``. Header to use for the session.
+    :param randomize_user_agent: Defaults to ``False``. Whether or not to select a random user-agent header when we
+        switch IP addresses. If ``True``, any user-agent header supplied in headers will be ignored upon getting a
+        new IP address.
+    :param max_n_uses: Defaults to ``5``. Max number of uses per IP address.
+    :param minimum_wait_time: Defaults to ``5``. Minimum number of seconds to wait between requests.
+    :param random_wait_time: Defaults to ``5``. Max amount of randomized time to wait between requests. Random extra
+        wait time will be sample from a uniform distribution of ``U(0, random_wait_time)`` resulting in total wait time
+        being distributed according to ``U(minimum_wait_time, minimum_wait_time + random_wait_time)``
+    :param socks_port: Defaults to ``9050``. The TOR socks port setup on your machine.
+    :param control_port: Defaults to ``9051``. The TOR control port setup on your machine.
+    :param tor_password: Defaults to ``None``. The TOR password for your machine. If ``None`` will use an empty
+        password, i.e. ``""``.
+    :param cacher: Defaults to ``PickleCacher``. Cacher object used to cache request responses. Should implement
+        ``check_response_exists`` and ``cache_response`` methods.
+    :param ignore_cache: Defaults to ``False``. Whether or not to ignore what is already in the cache when
+        scraping. Scraped pages will still be cached if this is ``False``.
+    """
+
     def __init__(
         self,
         headers: dict = None,
-        randomize_headers: bool = False,
+        randomize_user_agent: bool = False,
         max_n_uses: int = 5,
         minimum_wait_time: int = 5,
         random_wait_time: int = 5,
@@ -35,7 +69,7 @@ class Scraper:
         ignore_cache: bool = False,
     ):
         self.headers = headers
-        self.randomize_headers = randomize_headers
+        self.randomize_headers = randomize_user_agent
         self.max_n_uses = max_n_uses
         self.minimum_wait_time = minimum_wait_time
         self.random_wait_time = random_wait_time
@@ -68,7 +102,7 @@ class Scraper:
             "http": f"socks5://127.0.0.1:{self.socks_port}",
             "https": f"socks5://127.0.0.1:{self.socks_port}",
         }
-        session.headers = self.headers
+        session.headers = self.headers or {}
         return session
 
     def _update_current_ip(self):
@@ -94,7 +128,7 @@ class Scraper:
             controller.signal(Signal.NEWNYM)
         self._update_current_ip()
         if self.randomize_headers:
-            self.tor_session.headers = random.choice(USER_AGENTS)
+            self.tor_session.headers["User-Agent"] = random.choice(USER_AGENTS)
         self._log_ip_related(
             f"\t\t\tNew Tor connection processed with IP: {self.current_ip}"
         )
@@ -128,7 +162,16 @@ class Scraper:
         return url.replace("/", "__")
 
     def scrape(self, url: str, **kwargs):
-        """# TODO (hsorsky):
+        """Scrape the given URL, saving it using the instances cacher. Process is as follows:
+
+        1. Convert the URL to a filename - currently we just replace "/" with "__".
+        2. If ignoring the cache, skip to step 4. Else go to step 3.
+        3. Check if the file already exists in the cache. If it exists, finish. If not, go to step 4.
+        4. Get the response using the TOR session.
+        5. If the response is successful (i.e. status code in the 200s) store in cache. If not, add to set of URLs
+            that gave bad status codes.
+
+        If an error occurs, the URLs giving bad responses will be printed.
 
         :param url: URL to cache.
         :param kwargs: kwargs
@@ -138,23 +181,28 @@ class Scraper:
             self._log_fetch_related(f"Page: {url}")
             if self.ignore_cache:
                 self._log_fetch_related(f"\tIgnoring cache")
+                fetch_from_internet = True
             else:
                 self._log_fetch_related("\tChecking cache for page")
                 exists_in_cache = self.cacher.check_response_exists(file_name)
                 if exists_in_cache:
                     self._log_fetch_related("\tPage found in cache - skipping.")
+                    fetch_from_internet = False
                 else:
-                    response = self._get_page_from_internet(url, **kwargs)
+                    fetch_from_internet = True
 
-                    # check its a 200 code - this means success
-                    success = response.status_code // 100 == 2
-                    if success:
-                        self.cacher.cache_response(response, file_name)
-                    else:
-                        self._log_fetch_related(
-                            f"\tBad response status code {response.status_code}. Not caching."
-                        )
-                        self.bad_response_urls.add(url)
+            if fetch_from_internet:
+                response = self._get_page_from_internet(url, **kwargs)
+
+                # check its a 200 code - this means success
+                success = response.status_code // 100 == 2
+                if success:
+                    self.cacher.cache_response(response, file_name)
+                else:
+                    self._log_fetch_related(
+                        f"\tBad response status code {response.status_code}. Not caching."
+                    )
+                    self.bad_response_urls.add(url)
         except:
             print(f"\n{self.bad_response_urls}\n")
             raise
