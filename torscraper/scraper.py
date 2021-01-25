@@ -85,6 +85,12 @@ class Scraper:
         self.ips_used = {}
         self._update_current_ip()
         self.bad_response_urls = set()
+        self.set_last_scrape_time()
+
+    def set_last_scrape_time(self):
+        """Set the last time a page was scraped (i.e. request was made)."""
+        self.last_scrape_time = time.time()
+        return self.last_scrape_time
 
     def _validate_inputs(self):
         """ Validate the inputs.
@@ -224,7 +230,8 @@ class Scraper:
             self._refresh_ip()
 
         # get the page
-        wait_time = self.minimum_wait_time + random.random() * self.random_wait_time
+        time_since_last_request = time.time() - self.last_scrape_time
+        wait_time = max(self.minimum_wait_time + random.random() * self.random_wait_time - time_since_last_request, 0)
 
         self._log_fetch_related(
             f"\t\tSleeping for {wait_time:.2f}s to avoid getting blacklisted"
@@ -233,6 +240,7 @@ class Scraper:
         time.sleep(wait_time)
         self._log_fetch_related("\t\tFetching page from internet...")
         response = self.tor_session.get(url, **kwargs)
+        self.set_last_scrape_time()
         self._update_ip_dict(n_uses=1)
         self._log_fetch_related("\t\tPage fetched from internet")
 
