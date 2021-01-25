@@ -5,8 +5,7 @@ import time
 import warnings
 
 import requests
-from requests import Response
-from requests import Session
+from requests import Response, Session
 from stem import Signal
 from stem.control import Controller
 from termcolor import colored
@@ -231,7 +230,12 @@ class Scraper:
 
         # get the page
         time_since_last_request = time.time() - self.last_scrape_time
-        wait_time = max(self.minimum_wait_time + random.random() * self.random_wait_time - time_since_last_request, 0)
+        wait_time = max(
+            self.minimum_wait_time
+            + random.random() * self.random_wait_time
+            - time_since_last_request,
+            0,
+        )
 
         self._log_fetch_related(
             f"\t\tSleeping for {wait_time:.2f}s to avoid getting blacklisted"
